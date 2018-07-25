@@ -17,7 +17,7 @@
 	1. 序号列表
 
 图像:
-![眼](/images/logo.png)
+![眼](/images/eyes.jpg)
 
 超链接:
 [google](https://www.google.com)
