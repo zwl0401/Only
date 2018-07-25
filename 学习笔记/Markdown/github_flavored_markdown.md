@@ -11,10 +11,10 @@ def foo():
 - [ ] abc
 
 * 表格(Tables)
+
 账号 | 密码
 abc | abc
 abc | abc
 
 * 删除线(Strikethrough)
-~~abcabc
 ~~abc~~
