@@ -17,6 +17,7 @@
 	1. 序号列表
 
 图像:
+
 ![眼](https://github.com/zwl0401/only/blob/master/%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/images/eyes.jpg)
 
 超链接:
@@ -24,4 +25,17 @@
 
 引用块:
 > 引用内容
+> 引用内容
 
+行内代码(inline code):
+ubuntu安装gcc的命令:`sudo apt install gcc`
+
+整行代码:
+```
+#include <iostream>
+int main(void)
+{
+	std::cout << "hello" << std::endl;
+	return 0;
+}
+```
