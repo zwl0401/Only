@@ -18,7 +18,7 @@
 
 图像:
 
-![眼](https://github.com/zwl0401/only/blob/master/%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/images/eyes.jpg)
+![眼](https://github.com/zwl0401/only/blob/master/images/eyes.jpg)
 
 超链接:
 [google](https://www.google.com)
