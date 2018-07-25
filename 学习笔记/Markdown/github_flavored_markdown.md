@@ -1,9 +1,9 @@
 * 语法高亮(Syntax highlighting)
 
-```
+```python
 def foo():
-	if not bar:
-		return True
+if not bar:
+return True
 ```
 * 任务列表(Task lists)
 

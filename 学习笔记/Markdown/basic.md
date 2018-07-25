@@ -35,7 +35,7 @@ ubuntu安装gcc的命令:`sudo apt install gcc`
 #include <iostream>
 int main(void)
 {
-	std::cout << "hello" << std::endl;
-	return 0;
+std::cout << "hello" << std::endl;
+return 0;
 }
 ```
