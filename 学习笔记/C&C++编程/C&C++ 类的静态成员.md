@@ -21,7 +21,7 @@ private:
 	int _a2;
 };
 
-int A::_a1 = 0;
+int A::_a1 = 0; 
 
 int main()
 {
