@@ -4,7 +4,7 @@
 
 > 重载只是一种语言特性，是一种语法规则，**与多态无关**，与面向对象也无关。
 
-```
+```c++
 #include <iostream>
 using namespace std;
 
@@ -35,7 +35,7 @@ Nothing
 > 是指派生类的函数屏蔽了与其同名的基类函数，规则如下：
 （1）如果派生类的函数与基类的函数同名，但是参数不同。此时，不论有无virtual关键字，基类的函数将被**隐藏**
 （2）如果派生类的函数与基类的函数同名，并且参数也相同，但是基类函数没有virtual关键字。此时，基类的函数被**隐藏**
-```
+```c++
 #include <iostream>
 using namespace std;
 
@@ -83,7 +83,7 @@ class B
 （2）函数名字相同；
 （3）参数相同；
 （4）基类函数必须有virtual 关键字。
-```
+```c++
 #include <iostream>
 using namespace std;
 
