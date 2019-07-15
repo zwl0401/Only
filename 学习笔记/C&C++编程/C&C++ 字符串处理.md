@@ -38,4 +38,5 @@ int main(void)
 * `strcpy`，`strlen'，`strcat`等
 
 ## C++字符串
-* string类
+* 引入string类
+
