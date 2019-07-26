@@ -1,0 +1,274 @@
+// 检测资源冲突
+void ResourceConflictCheck(PMAP_PARA pMapPara)
+{
+	// 检查顺序优化，中断提前
+	bool PassFlag = true; //控制错误提示在命令窗口的输出
+	Uint16* pPdschReBitMap = new Uint16[SUBFRAME_SYMBOL_NUM*l3_data.uwMaxDlRbNum](); // 资源占用情况BitMap数组，初始化0
+	Uint8* pPdcchRbMap = new Uint8[SUBFRAME_SYMBOL_NUM*l3_data.uwMaxDlRbNum]();
+	Uint16 StartSym;
+	Uint16 EndSym;
+	Uint16 StartRb;
+	Uint16 EndRb;
+
+	// 生成PDSCH的资源占用数组
+	for (Uint16 UserIdx = 0; UserIdx < gPDSCHUserNum; UserIdx++) {
+		StartSym = pdsch_data[UserIdx].PdschSymStart;
+		EndSym = pdsch_data[UserIdx].PdschSymEnd;
+		for (Uint32 SymIdx = StartSym; SymIdx < EndSym; SymIdx++) {
+			if (pdsch_data[UserIdx].RbAllocType == 1) { // 连续RB方式
+				StartRb = pdsch_data[UserIdx].BwpStartPrb + (pdsch_data[UserIdx].RbAllocInfo & 0x00FF); //  RbAllocInfo bit0-bit15:  起始RB号
+				EndRb = StartRb + (pdsch_data[UserIdx].RbAllocInfo >> 16 & 0x00FF); // RbAllocInfo bit16-bit31: RB长度
+			}
+			else { // RbAllocType == 0，RBG方式
+				Uint16 BwpRbNumInRbg;
+				if (pdsch_data[UserIdx].BwpBandwidth <= 36) { BwpRbNumInRbg = RBNUM_PER_RBG_36LESS; } // 有效带宽  1- 36RB
+				else if (pdsch_data[UserIdx].BwpBandwidth <= 72) { BwpRbNumInRbg = RBNUM_PER_RBG_72LESS; } // 有效带宽 37- 72RB
+				else if (pdsch_data[UserIdx].BwpBandwidth <= 144) { BwpRbNumInRbg = RBNUM_PER_RBG_144LESS; } // 有效带宽 73-144RB
+				else { BwpRbNumInRbg = RBNUM_PER_RBG_273LESS; } // 有效带宽145-273RB
+				for (Uint32 i = 0; i < 18; i++) { // BwpBandWidth里最多有18个RBG
+					if (pdsch_data[UserIdx].RbAllocInfo & (1 << (31 - i))) {
+						StartRb = pdsch_data[UserIdx].BwpStartPrb + i * BwpRbNumInRbg;
+						EndRb = pdsch_data[UserIdx].BwpStartPrb + (i + 1) * BwpRbNumInRbg - 1;
+						for (Uint32 RbIdx = 0; RbIdx <= EndRb; RbIdx++) {
+							pPdschReBitMap[SymIdx*l3_data.uwMaxDlRbNum + RbIdx];
+						}
+					}
+				}
+			}
+		}
+	}
+
+	//	Uint16 BitMap0 = Uint16(pdsch_data[UserIdx].RsReMap0) & 0x0FFF; //逻辑与操作可以省略
+	//	Uint16 BitMap1 = Uint16(pdsch_data[UserIdx].RsReMap1) & 0x0FFF;
+	//	Uint16 BitMap2 = Uint16(pdsch_data[UserIdx].RsReMap2) & 0x0FFF;
+	//	Uint16 BitMap3 = Uint16(pdsch_data[UserIdx].RsReMap3) & 0x0FFF;
+	//	for (Uint32 SymIdx = StartSym; SymIdx <= EndSym; SymIdx++) {
+	//		Uint16 TempBitMap = 0xF000; // 高四位置1，取反后恰为0
+	//		if (SymIdx == pdsch_data[UserIdx].RsSymPos0) { TempBitMap |= BitMap0; }
+	//		if (SymIdx == pdsch_data[UserIdx].RsSymPos1) { TempBitMap |= BitMap1; }
+	//		if (SymIdx == pdsch_data[UserIdx].RsSymPos2) { TempBitMap |= BitMap2; }
+	//		if (SymIdx == pdsch_data[UserIdx].RsSymPos3) { TempBitMap |= BitMap3; }
+	//		TempBitMap = ~TempBitMap;
+	//		for (Uint32 RbIdx = 0; RbIdx < l3_data.uwMaxDlRbNum; RbIdx++) {
+	//			if (pMapPara->uaLayerDataPdsch_RbValid[UserIdx][0][0][SymIdx][RbIdx] == 1) {
+	//				pPdschReBitMap[SymIdx*l3_data.uwMaxDlRbNum + RbIdx] |= TempBitMap; //允许用户间冲突，所以使用按位或的操作
+	//			}
+	//		}
+	//	}
+	//}
+
+	// 生成PDCCH的资源占用数组
+	if (gPDCCHUserNum == 1) {
+		for (Uint32 DciIdx = 0; DciIdx < pdcch_data.DciNum; DciIdx++) {
+			StartSym = pdcch_data.StartSymbol[DciIdx];
+			EndSym = pdcch_data.StartSymbol[DciIdx] + pdcch_data.SymbolNum[DciIdx] - 1;
+			StartRb = pdcch_data.StartRegNo[DciIdx];
+			EndRb = pdcch_data.StartRegNo[DciIdx] + pdcch_data.RegNum[DciIdx] / pdcch_data.SymbolNum[DciIdx];
+			for (Uint32 SymIdx = StartSym; SymIdx <= EndSym; SymIdx++) {
+				for (Uint32 RbIdx = StartRb; RbIdx < EndRb; RbIdx++) {
+					pPdcchRbMap[SymIdx*l3_data.uwMaxDlRbNum + RbIdx] = 1;
+				}
+			}
+		}
+	}
+
+	// 生成PBCH的资源占用数组
+	if (gPBCHUserNum == 1) {
+		for (Uint32 SsBlockIdx = 0; SsBlockIdx < pbch_data.SsBlockNum; SsBlockIdx++) {
+			StartSym = pbch_data.StartSymbolNo[SsBlockIdx];
+			EndSym = pbch_data.StartSymbolNo[SsBlockIdx] + 3;
+			StartRb = pdcch_data.StartRegNo[DciIdx];
+			EndRb = pdcch_data.StartRegNo[DciIdx] + pdcch_data.RegNum[DciIdx] / pdcch_data.SymbolNum[DciIdx];
+			for (Uint32 SymIdx = StartSym; SymIdx <= EndSym; SymIdx++) {
+				for (Uint32 RbIdx = StartRb; RbIdx < EndRb; RbIdx++) {
+					pPdcchRbMap[SymIdx*l3_data.uwMaxDlRbNum + RbIdx] = 1;
+				}
+			}
+		}
+	}
+
+	// 检查PDSCH与PDCCH资源冲突
+	if (gPDSCHUserNum > 0 && gPDCCHUserNum > 0) {
+		for (Uint32 SymIdx = 0; SymIdx < 3; SymIdx++) { // comment
+			for (Uint32 RbIdx = 0; RbIdx < l3_data.uwMaxDlRbNum; RbIdx++) {
+				if ((pPdschReBitMap[SymIdx*l3_data.uwMaxDlRbNum + RbIdx] != 0) && (pPdcchRbMap[SymIdx*l3_data.uwMaxDlRbNum + RbIdx] != 0)) {
+					LogFile << "Resource Allocation Conflict between PDSCH and PDCCH " << '\n';
+					LogFile << "Symbol index is : " << to_string((long long)SymIdx) << " , RB index is : " << to_string((long long)RbIdx) << '\n';
+					PassFlag = false;
+				}
+			}
+		}
+	}
+	if (!PassFlag) { // 只输出错误提示
+		cout << "Error : Resource Allocation Conflict between PDSCH and PDCCH!" << '\n';
+	}
+
+	// 检查PDSCH与PBCH资源冲突
+	PassFlag = true;
+	if (gPDSCHUserNum > 0 && gPBCHUserNum > 0) {
+		for (Uint32 SymIdx = 0; SymIdx < SUBFRAME_SYMBOL_NUM; SymIdx++) {
+			for (Uint32 RbIdx = 0; RbIdx < l3_data.uwMaxDlRbNum; RbIdx++) {
+				if ((pPdschReBitMap[SymIdx*l3_data.uwMaxDlRbNum + RbIdx] != 0) && (pMapPara->uaLayerDataPbch_RbValid[SymIdx][RbIdx] != 0)) {
+					LogFile << "Resource Allocation Conflict between PDSCH and PBCH " << '\n';
+					LogFile << "Symbol index is : " << to_string((long long)SymIdx) << " , RB index is : " << to_string((long long)RbIdx) << '\n';
+					PassFlag = false;
+				}
+			}
+		}
+	}
+	if (!PassFlag) {
+		cout << "Error : Resource Allocation Conflict between PDSCH and PBCH!" << '\n';
+	}
+
+	// 检查PDCCH与PBCH资源冲突
+	PassFlag = true;
+	if (gPDCCHUserNum > 0 && gPBCHUserNum > 0) {
+		for (Uint32 SymIdx = 0; SymIdx < SUBFRAME_SYMBOL_NUM; SymIdx++) {
+			for (Uint32 RbIdx = 0; RbIdx < l3_data.uwMaxDlRbNum; RbIdx++) {
+				if ((pPdcchRbMap[SymIdx*l3_data.uwMaxDlRbNum + RbIdx] == 1) && (pMapPara->uaLayerDataPbch_RbValid[SymIdx][RbIdx] == 1)) {
+					LogFile << "Resource Allocation Conflict between PDCCH and PBCH " << '\n';
+					LogFile << "Symbol index is : " << to_string((long long)SymIdx) << " , RB index is : " << to_string((long long)RbIdx) << '\n';
+					PassFlag = false;
+				}
+			}
+		}
+	}
+	if (!PassFlag) {
+		cout << "Error : Resource Allocation Conflict between PDCCH and PBCH!" << '\n';
+	}
+
+	// 检查PDSCH与CSI-RS资源冲突
+	PassFlag = true;
+	if (gPDSCHUserNum > 0 && gCSIRSUserNum > 0) {
+		for (Uint32 ConfigIdx = 0; ConfigIdx < csirs_data.ConfigNum; ConfigIdx++) {
+			Uint32 StartRb = (l3_data.u20A_Dlcomp == 1) ? csirs_data.StartRb[ConfigIdx] : 0;
+			Uint32 EndRb = (l3_data.u20A_Dlcomp == 1) ? (StartRb + csirs_data.RbNum[ConfigIdx]) : l3_data.uwMaxDlRbNum;
+			Uint32 SymIdx = csirs_data.l0[ConfigIdx];
+			Uint32 CsiReBitMap = csirs_data.StartReBitmap[ConfigIdx];
+			Uint32 Density = (csirs_data.Density[ConfigIdx] == 2) ? 3 : 1;
+			Uint32 PortNum = (csirs_data.CdmType[ConfigIdx] == 1) ? 2 : 1;
+			if (Density == 3) {
+				CsiReBitMap = Uint32(CsiReBitMap | (CsiReBitMap << 4) | (CsiReBitMap << 8));
+			}
+			if (PortNum == 2) {
+				CsiReBitMap = Uint32(CsiReBitMap | (CsiReBitMap << 1));
+			}
+
+			for (Uint32 RbIdx = StartRb; RbIdx < EndRb; RbIdx++) {
+				if (pPdschReBitMap[SymIdx*l3_data.uwMaxDlRbNum + RbIdx] & CsiReBitMap & 0x0FFF) { // 删除oxfff
+					LogFile << "Resource Allocation Conflict between PDSCH and CSI-RS " << '\n';
+					LogFile << "Symbol index is : " << to_string((long long)SymIdx) << " , RB index is : " << to_string((long long)RbIdx) << '\n';
+					// 考虑添加二进制输出
+					PassFlag = false;
+				}
+			}
+		}
+	}
+	if (!PassFlag) {
+		cout << "Error : Resource Allocation Conflict between PDSCH and CSI-RS!" << '\n';
+	}
+
+	// 检查PDSCH与TRS资源冲突
+	PassFlag = true;
+	if (gPDSCHUserNum > 0 && gTRSUserNum > 0) {
+		for (Uint32 ConfigIdx = 0; ConfigIdx < trs_data.ConfigNum; ConfigIdx++) {
+			Uint32 StartRb = (l3_data.u20A_Dlcomp == 1) ? trs_data.StartRb[ConfigIdx] : 0;
+			Uint32 EndRb = (l3_data.u20A_Dlcomp == 1) ? (StartRb + trs_data.RbNum[ConfigIdx]) : l3_data.uwMaxDlRbNum;
+			Uint32 SymIdx = trs_data.l0[ConfigIdx];
+			Uint32 CsiReBitMap = trs_data.StartReBitmap[ConfigIdx];
+			Uint32 Density = (trs_data.Density[ConfigIdx] == 2) ? 3 : 1;
+			Uint32 PortNum = (trs_data.CdmType[ConfigIdx] == 1) ? 2 : 1;
+			if (Density == 3) {
+				CsiReBitMap = Uint32(CsiReBitMap | (CsiReBitMap << 4) | (CsiReBitMap << 8));
+			}
+			if (PortNum == 2) {
+				CsiReBitMap = Uint32(CsiReBitMap | (CsiReBitMap << 1));
+			}
+			for (Uint32 RbIdx = StartRb; RbIdx < EndRb; RbIdx++) {
+				if (pPdschReBitMap[SymIdx*l3_data.uwMaxDlRbNum + RbIdx] & CsiReBitMap & 0x0FFF) {
+					LogFile << "Resource Allocation Conflict between PDSCH and CSI-RS " << '\n';
+					LogFile << "Symbol index is : " << to_string((long long)SymIdx) << " , RB index is : " << to_string((long long)RbIdx) << '\n';
+					// 考虑添加二进制输出
+					PassFlag = false;
+				}
+			}
+		}
+	}
+	if (!PassFlag) {
+		cout << "Error : Resource Allocation Conflict between PDSCH and TRS!" << '\n';
+	}
+
+
+	// 通道校正和时钟失步不能同时存在
+	if (l3_data.uwClockNsyncStart == 1 && l3_data.uwChnCalibStart == 1) { // == 1 删除 
+		cout << "Error！通道校正和时钟失步不能同时存在!" << endl;
+		LogFile << "Error！通道校正和时钟失步不能同时存在!" << endl;
+		RM_abn_exit();
+	}
+
+	// 检查通道校正
+	PassFlag = true;
+	if (l3_data.uwChnCalibStart == 1 && l3_data.strDlCellCorChnStartParam.ucCorMode == 0) {
+		for (Uint32 SymIdx = l3_data.strDlCellCorChnStartParam.chanClibPara.usStartSymbol - 1;
+			SymIdx <= l3_data.strDlCellCorChnStartParam.chanClibPara.usStartSymbol; SymIdx++) {
+			for (Uint32 RbIdx = 0; RbIdx < l3_data.uwMaxDlRbNum; RbIdx++) {
+				if (pPdschReBitMap[SymIdx*l3_data.uwMaxDlRbNum + RbIdx] != 0) {
+					LogFile << "Resource Allocation Conflict between PDSCH and ChnCalib " << '\n';
+					LogFile << "Symbol index is : " << to_string((long long)SymIdx) << " , RB index is : " << to_string((long long)RbIdx) << '\n';
+					PassFlag = false;
+				}
+			}
+		}
+	}
+	if (!PassFlag) {
+		cout << "Error : Resource Allocation Conflict between PDSCH and ChnCalib!" << '\n';
+	}
+
+	// 检查时钟失步
+	PassFlag = true;
+	if (l3_data.uwClockNsyncStart == 1) {
+		for (Uint32 SymIdx = l3_data.strDlCellClockNsyncStartParam.clockSyncPara.usStartSymbol - 1;
+			SymIdx <= l3_data.strDlCellClockNsyncStartParam.clockSyncPara.usStartSymbol; SymIdx++) {
+			for (Uint32 RbIdx = 0; RbIdx < l3_data.uwMaxDlRbNum; RbIdx++) {
+				if (pPdschReBitMap[SymIdx*l3_data.uwMaxDlRbNum + RbIdx] != 0) {
+					LogFile << "Resource Allocation Conflict between PDSCH and ClockNsync " << '\n';
+					LogFile << "Symbol index is : " << to_string((long long)SymIdx) << " , RB index is : " << to_string((long long)RbIdx) << '\n';
+					PassFlag = false;
+				}
+			}
+		}
+	}
+	if (!PassFlag) {
+		cout << "Error : Resource Allocation Conflict between PDSCH and ClockNsync!" << '\n';
+	}
+
+	// 检查大气波导
+	PassFlag = true;
+	if (l3_data.uwAtmosphereStart == 1) {
+		if (!(gPDSCHUserNum == 0 && gPBCHUserNum == 0 && gCSIRSUserNum == 0)) {
+			cout << "Error！大气波导与PDSCH,PBCH,CSIRS不能同时发送!" << endl;
+			LogFile << "Error！大气波导与PDSCH,PBCH,CSIRS不能同时发送!" << endl;
+			RM_abn_exit();
+		}
+		Uint32 SendIdx = l3_data.strDlCellAtmosphereStartParam.I_t % l3_data.strDlCellAtmosphereStartParam.ucUlDlShiftNum;
+		Uint32 StartSym = l3_data.strDlCellAtmosphereStartParam.ucStartSymbolPos[SendIdx];
+		Uint32 EndSym = StartSym + l3_data.strDlCellAtmosphereStartParam.usSymbolNum; // SymbolNum固定为2
+		Uint32 StartRb = l3_data.strDlCellAtmosphereStartParam.I_f * RESEQ_RB_NUM;
+		Uint32 EndRb = StartRb + RESEQ_RB_NUM;
+		for (Uint32 SymIdx = StartSym; SymIdx < StartSym + EndSym; SymIdx++) {
+			for (Uint32 RbIdx = StartRb; RbIdx < EndRb; RbIdx++) {
+				if (pPdschReBitMap[SymIdx*l3_data.uwMaxDlRbNum + RbIdx] != 0) {
+					LogFile << "Resource Allocation Conflict between PDSCH and Atmosphere" << '\n';
+					LogFile << "Symbol index is : " << to_string((long long)SymIdx) << " , RB index is : " << to_string((long long)RbIdx) << '\n';
+					PassFlag = false;
+				}
+			}
+		}
+	}
+	if (!PassFlag) {
+		cout << "Error : Resource Allocation Conflict between PDSCH and Atmosphere!" << '\n';
+	}
+
+	delete[] pPdschReBitMap;
+	delete[] pPdcchRbMap;
+}
